@@ -2,13 +2,11 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, LocationMessage,
-    QuickReply, QuickReplyButton, MessageAction
+    MessageEvent, TextMessage, TextSendMessage
 )
 import requests
 import os
 from dotenv import load_dotenv
-import urllib.parse
 
 load_dotenv()
 
@@ -18,19 +16,13 @@ line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
-# 暫時記憶每個用戶的起點（部署時可改用資料庫）
-user_origins = {}
+# 使用者起點記憶（如果你要支援動態設定位置）
+user_origin_map = {}
 
-# 常用起點選項（可自行修改）
-quick_origin_options = [
-    ("🏠 家", "台中市太平區建功街71號"),
-    ("🏢 公司", "台中市西屯區文心路三段"),
-    ("🚉 車站", "台中火車站")
-]
-
-def get_drive_time(origin, destination):
+def get_drive_time(user_id, destination):
+    origin = user_origin_map.get(user_id, "台中市西屯區逢明街29巷70號")  # 預設起點
     url = "https://maps.googleapis.com/maps/api/directions/json"
-
+    
     params = {
         "origin": origin,
         "destination": destination,
@@ -44,7 +36,7 @@ def get_drive_time(origin, destination):
     response = requests.get(url, params=params).json()
 
     if not response.get('routes'):
-        return f"{destination}\n1651黑 🄲代駕\n查詢失敗：找不到路線"
+        return f"{destination}\n1651黑 🈲代駕\n查詢失敗：找不到路線", None
 
     try:
         leg = response['routes'][0]['legs'][0]
@@ -54,14 +46,11 @@ def get_drive_time(origin, destination):
 
         minutes = int(''.join(filter(str.isdigit, duration_text))) + 2
 
-        # 加上 Google Maps 導航連結
-        origin_encoded = urllib.parse.quote(origin)
-        destination_encoded = urllib.parse.quote(destination)
-        map_url = f"https://www.google.com/maps/dir/?api=1&origin={origin_encoded}&destination={destination_encoded}&travelmode=driving"
+        maps_link = f"https://www.google.com/maps/dir/?api=1&destination={destination}&travelmode=driving"
 
-        return f"{destination}\n1651黑 🄲代駕\n{minutes}分\n\n👉 Google Maps 導航：\n{map_url}"
+        return f"{destination}\n1651黑 🈲代駕\n{minutes}分", maps_link
     except Exception as e:
-        return f"{destination}\n1651黑 🄲代駕\n查詢失敗：{str(e)}"
+        return f"{destination}\n1651黑 🈲代駕\n查詢失敗：{str(e)}", None
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -75,56 +64,20 @@ def callback():
     return 'OK'
 
 @handler.add(MessageEvent, message=TextMessage)
-def handle_text(event):
+def handle_message(event):
     user_id = event.source.user_id
-    message_text = event.message.text
+    user_text = event.message.text
 
-    # 若使用者點選快速選單設定起點
-    for label, origin_text in quick_origin_options:
-        if message_text == label:
-            user_origins[user_id] = origin_text
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"✅ 已將起點設定為「{label}」：{origin_text}")
-            )
-            return
+    reply_text, maps_link = get_drive_time(user_id, user_text)
 
-    if user_id not in user_origins:
-        quick_reply = QuickReply(
-            items=[
-                QuickReplyButton(action=MessageAction(label=label, text=label))
-                for label, _ in quick_origin_options
-            ]
+    messages = [TextSendMessage(text=reply_text)]
+
+    if maps_link:
+        messages.append(
+            TextSendMessage(text=f"👇 點我開始導航\n{maps_link}")
         )
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(
-                text="請先傳送一個「位置訊息」，或選擇常用起點：",
-                quick_reply=quick_reply
-            )
-        )
-        return
-
-    origin = user_origins[user_id]
-    destination = message_text
-    reply = get_drive_time(origin, destination)
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=reply)
-    )
-
-@handler.add(MessageEvent, message=LocationMessage)
-def handle_location(event):
-    user_id = event.source.user_id
-    lat = event.message.latitude
-    lng = event.message.longitude
-    origin = f"{lat},{lng}"
-    user_origins[user_id] = origin
 
     line_bot_api.reply_message(
         event.reply_token,
-        TextSendMessage(text="✅ 已設定目前位置為起點！您可以開始查詢目的地了。")
+        messages
     )
-
-if __name__ == "__main__":
-    app.run()
