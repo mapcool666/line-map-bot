@@ -1,4 +1,3 @@
-
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -35,7 +34,7 @@ def get_drive_time(destination):
         minutes = minutes.replace('分鐘', '').replace('分', '')
         return f"{destination}\n1651黑 🈲代駕\n{minutes}分"
     except Exception as e:
-        return f"查詢失敗：{str(e)}"
+        return f"{destination}\n1651黑 🈲代駕\n查詢失敗：{str(e)}"
 
 @app.route("/callback", methods=['POST'])
 def callback():
