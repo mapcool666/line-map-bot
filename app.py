@@ -15,21 +15,22 @@ handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
 def get_drive_time(destination):
-    origin = "台中市太平區建功街71號"  # 可以改成你想要的起點
+    origin = "台中市西屯區逢明街29巷70號"  # 可改為你常用出發地
     url = "https://maps.googleapis.com/maps/api/directions/json"
-
+    
     params = {
         "origin": origin,
         "destination": destination,
         "key": GOOGLE_API_KEY,
         "mode": "driving",
         "language": "zh-TW",
-        "region": "tw"
+        "region": "tw",
+        "departure_time": "now"  # ✅ 使用即時交通時間
     }
 
     response = requests.get(url, params=params).json()
 
-    # 防呆處理：找不到路線
+    # 防呆：查不到路線
     if not response.get('routes'):
         return f"{destination}\n1651黑 🈲代駕\n查詢失敗：找不到路線"
 
