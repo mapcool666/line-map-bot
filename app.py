@@ -20,7 +20,7 @@ user_states = {}
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
-# 🧠 地點解析（回傳：精確座標 + 原始地點名）
+# 地點解析（回傳：原始名稱 + 精確座標）
 def resolve_place(query):
     url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
     params = {
@@ -36,9 +36,9 @@ def resolve_place(query):
     if candidates:
         location = candidates[0]["geometry"]["location"]
         return query, f"{location['lat']},{location['lng']}"
-    return None, None
+    return query, None  # fallback：地點名稱保留
 
-# ⏱️ 查詢開車時間（顯示原始名稱）
+# 查詢開車時間（顯示原始名稱）
 def get_drive_time(origin, destination_coords, destination_text):
     url = "https://maps.googleapis.com/maps/api/directions/json"
     params = {
@@ -101,12 +101,9 @@ def handle_text(event):
     origin = user_states[user_id]
     destination_text, destination_coords = resolve_place(query)
 
+    # fallback：如果 Places API 找不到，就直接查地址
     if not destination_coords:
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"{query}\n1651黑 🈲代駕\n查詢失敗：找不到地點")
-        )
-        return
+        destination_coords = query
 
     travel_info, encoded_coords = get_drive_time(origin, destination_coords, destination_text)
 
