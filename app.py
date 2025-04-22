@@ -18,26 +18,50 @@ handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
 user_states = {}
 
-def get_drive_time(origin, destination):
+GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+
+# 🧠 新增：用 Place API 解析模糊地點
+def resolve_place(query):
+    url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
+    params = {
+        "input": query,
+        "inputtype": "textquery",
+        "fields": "formatted_address,geometry",
+        "language": "zh-TW",
+        "region": "tw",
+        "key": GOOGLE_API_KEY
+    }
+    response = requests.get(url, params=params).json()
+    candidates = response.get("candidates")
+    if candidates:
+        location = candidates[0]["geometry"]["location"]
+        return f"{location['lat']},{location['lng']}"
+    return None
+
+# ⏱️ 查詢開車時間
+def get_drive_time(origin, destination_coords):
     url = "https://maps.googleapis.com/maps/api/directions/json"
     params = {
         "origin": origin,
-        "destination": destination,
+        "destination": destination_coords,
         "departure_time": "now",
-        "key": os.getenv("GOOGLE_MAPS_API_KEY")
+        "key": GOOGLE_API_KEY,
+        "mode": "driving",
+        "language": "zh-TW",
+        "region": "tw"
     }
 
     response = requests.get(url, params=params).json()
 
     if not response.get("routes"):
-        return f"{destination}\n1651黑 🈲代駕\n查詢失敗：找不到路線", None
+        return f"{destination_coords}\n1651黑 🈲代駕\n查詢失敗：找不到路線", None
 
     try:
-        duration_text = response['routes'][0]['legs'][0]['duration_in_traffic']['text']
-        duration_min = int(''.join(filter(str.isdigit, duration_text))) + 2
-        return f"{destination}\n1651黑 🈲代駕\n{duration_min}分", destination
+        seconds = response["routes"][0]["legs"][0]["duration_in_traffic"]["value"]
+        minutes = int(seconds / 60) + 2
+        return f"{destination_coords}\n1651黑 🈲代駕\n{minutes}分", destination_coords
     except Exception as e:
-        return f"{destination}\n1651黑 🈲代駕\n查詢失敗：{str(e)}", None
+        return f"{destination_coords}\n1651黑 🈲代駕\n查詢失敗：{str(e)}", None
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -65,7 +89,7 @@ def handle_location(event):
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text(event):
     user_id = event.source.user_id
-    destination = event.message.text
+    query = event.message.text
 
     if user_id not in user_states:
         line_bot_api.reply_message(
@@ -75,16 +99,25 @@ def handle_text(event):
         return
 
     origin = user_states[user_id]
-    travel_info, dest_encoded = get_drive_time(origin, destination)
+    destination_coords = resolve_place(query)
 
-    if not dest_encoded:
+    if not destination_coords:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"{query}\n1651黑 🈲代駕\n查詢失敗：找不到地點")
+        )
+        return
+
+    travel_info, destination_encoded = get_drive_time(origin, destination_coords)
+
+    if not destination_encoded:
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=travel_info)
         )
         return
 
-    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(dest_encoded)}&travelmode=driving"
+    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(destination_encoded)}&travelmode=driving"
     line_bot_api.reply_message(
         event.reply_token,
         [
