@@ -1,3 +1,4 @@
+from urllib.parse import quote
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -75,7 +76,7 @@ def handle_text(event):
 
     origin = user_states[user_id]
     travel_info, dest_encoded = get_drive_time(origin, destination)
-    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={dest_encoded}&travelmode=driving"
+nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(dest_encoded)}&travelmode=driving"
 
     line_bot_api.reply_message(
         event.reply_token,
