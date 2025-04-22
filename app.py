@@ -15,7 +15,7 @@ handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
 def get_drive_time(destination):
-    origin = "台中市西屯區逢明街29巷70號"  # 可改為你常用出發地
+    origin = "台中市西屯區逢明街29巷70號"  # ← 你可以改成你的預設起點
     url = "https://maps.googleapis.com/maps/api/directions/json"
     
     params = {
@@ -25,7 +25,7 @@ def get_drive_time(destination):
         "mode": "driving",
         "language": "zh-TW",
         "region": "tw",
-        "departure_time": "now"  # ✅ 使用即時交通時間
+        "departure_time": "now"  # ✅ 必須設定，才能用 duration_in_traffic
     }
 
     response = requests.get(url, params=params).json()
@@ -35,8 +35,16 @@ def get_drive_time(destination):
         return f"{destination}\n1651黑 🈲代駕\n查詢失敗：找不到路線"
 
     try:
-        minutes = response['routes'][0]['legs'][0]['duration']['text']
-        minutes = minutes.replace("分鐘", "").replace("分", "")
+        leg = response['routes'][0]['legs'][0]
+
+        # ✅ 先嘗試使用即時交通時間
+        duration = leg.get('duration_in_traffic', {}).get('text')
+
+        # 如果沒有 traffic 預估時間，就 fallback 用普通 duration
+        if not duration:
+            duration = leg['duration']['text']
+
+        minutes = duration.replace("分鐘", "").replace("分", "")
         return f"{destination}\n1651黑 🈲代駕\n{minutes}分"
     except Exception as e:
         return f"{destination}\n1651黑 🈲代駕\n查詢失敗：{str(e)}"
