@@ -19,6 +19,9 @@ def get_drive_time(destination):
     origin = "current+location"
     url = f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={destination}&key={GOOGLE_API_KEY}"
     response = requests.get(url).json()
+# 防呆：處理 Google Maps 查不到路線的情況
+if not response.get('routes'):
+    return f"{destination}\n1651黑 🈲代駕\n查詢失敗：找不到路線"
     try:
         duration = response['routes'][0]['legs'][0]['duration']['text']
         minutes = ''.join(filter(str.isdigit, duration))
