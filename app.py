@@ -2,7 +2,10 @@ from urllib.parse import quote
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, LocationMessage, QuickReply, QuickReplyButton, MessageAction
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage,
+    LocationMessage
+)
 import requests
 import os
 from dotenv import load_dotenv
@@ -65,36 +68,30 @@ def handle_text(event):
     destination = event.message.text
 
     if user_id not in user_states:
-        quick_reply = QuickReply(items=[
-            QuickReplyButton(action=MessageAction(label="使用目前位置", text="使用目前位置"))
-        ])
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="❗ 請先傳送一個「位置訊息」設定起點。", quick_reply=quick_reply)
+            TextSendMessage(text="❗ 請先傳送一個「位置訊息」設定起點。")
         )
         return
 
     origin = user_states[user_id]
-travel_info, dest_encoded = get_drive_time(origin, destination)
+    travel_info, dest_encoded = get_drive_time(origin, destination)
 
-# 如果查不到路線就只回傳一則文字
-if not dest_encoded:
+    if not dest_encoded:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=travel_info)
+        )
+        return
+
+    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(dest_encoded)}&travelmode=driving"
     line_bot_api.reply_message(
         event.reply_token,
-        TextSendMessage(text=travel_info)
+        [
+            TextSendMessage(text=travel_info),
+            TextSendMessage(text=f"👇 點我開始導航\n{nav_link}")
+        ]
     )
-    return
-
-# 正常回報兩則訊息
-nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(dest_encoded)}&travelmode=driving"
-line_bot_api.reply_message(
-    event.reply_token,
-    [
-        TextSendMessage(text=travel_info),
-        TextSendMessage(text=f"👇 點我開始導航\n{nav_link}")
-    ]
-)
-
 
 if __name__ == "__main__":
     app.run()
