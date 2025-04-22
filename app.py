@@ -20,7 +20,7 @@ user_states = {}
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
-# 🧠 新增：用 Place API 解析模糊地點
+# 🧠 地點解析（回傳：精確座標 + 原始地點名）
 def resolve_place(query):
     url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
     params = {
@@ -35,11 +35,11 @@ def resolve_place(query):
     candidates = response.get("candidates")
     if candidates:
         location = candidates[0]["geometry"]["location"]
-        return f"{location['lat']},{location['lng']}"
-    return None
+        return query, f"{location['lat']},{location['lng']}"
+    return None, None
 
-# ⏱️ 查詢開車時間
-def get_drive_time(origin, destination_coords):
+# ⏱️ 查詢開車時間（顯示原始名稱）
+def get_drive_time(origin, destination_coords, destination_text):
     url = "https://maps.googleapis.com/maps/api/directions/json"
     params = {
         "origin": origin,
@@ -54,14 +54,14 @@ def get_drive_time(origin, destination_coords):
     response = requests.get(url, params=params).json()
 
     if not response.get("routes"):
-        return f"{destination_coords}\n1651黑 🈲代駕\n查詢失敗：找不到路線", None
+        return f"{destination_text}\n1651黑 🈲代駕\n查詢失敗：找不到路線", None
 
     try:
         seconds = response["routes"][0]["legs"][0]["duration_in_traffic"]["value"]
         minutes = int(seconds / 60) + 2
-        return f"{destination_coords}\n1651黑 🈲代駕\n{minutes}分", destination_coords
+        return f"{destination_text}\n1651黑 🈲代駕\n{minutes}分", destination_coords
     except Exception as e:
-        return f"{destination_coords}\n1651黑 🈲代駕\n查詢失敗：{str(e)}", None
+        return f"{destination_text}\n1651黑 🈲代駕\n查詢失敗：{str(e)}", None
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -99,7 +99,7 @@ def handle_text(event):
         return
 
     origin = user_states[user_id]
-    destination_coords = resolve_place(query)
+    destination_text, destination_coords = resolve_place(query)
 
     if not destination_coords:
         line_bot_api.reply_message(
@@ -108,16 +108,16 @@ def handle_text(event):
         )
         return
 
-    travel_info, destination_encoded = get_drive_time(origin, destination_coords)
+    travel_info, encoded_coords = get_drive_time(origin, destination_coords, destination_text)
 
-    if not destination_encoded:
+    if not encoded_coords:
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=travel_info)
         )
         return
 
-    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(destination_encoded)}&travelmode=driving"
+    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(encoded_coords)}&travelmode=driving"
     line_bot_api.reply_message(
         event.reply_token,
         [
