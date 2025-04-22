@@ -17,15 +17,23 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
 def get_drive_time(destination):
     origin = "current+location"
-    url = f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={destination}&key={GOOGLE_API_KEY}"
-response = requests.get(google_maps_url, params=params).json()
+    url = "https://maps.googleapis.com/maps/api/directions/json"
+    params = {
+        "origin": origin,
+        "destination": destination,
+        "key": GOOGLE_API_KEY
+    }
 
-# 防呆：處理 Google Maps 查不到路線的情況
-if not response.get('routes'):
-    return f"{destination}\n1651黑 🈲代駕\n查詢失敗：找不到路線"
+    response = requests.get(url, params=params).json()
 
-minutes = response['routes'][0]['legs'][0]['duration']['text'].replace('分鐘', '').replace('分', '')
-return f"{destination}\n1651黑 🈲代駕\n{minutes}分"
+    # 防呆：處理 Google Maps 查不到路線的情況
+    if not response.get('routes'):
+        return f"{destination}\n1651黑 🈲代駕\n查詢失敗：找不到路線"
+
+    try:
+        minutes = response['routes'][0]['legs'][0]['duration']['text']
+        minutes = minutes.replace('分鐘', '').replace('分', '')
+        return f"{destination}\n1651黑 🈲代駕\n{minutes}分"
     except Exception as e:
         return f"查詢失敗：{str(e)}"
 
