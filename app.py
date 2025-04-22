@@ -75,16 +75,26 @@ def handle_text(event):
         return
 
     origin = user_states[user_id]
-    travel_info, dest_encoded = get_drive_time(origin, destination)
-    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(dest_encoded)}&travelmode=driving"
+travel_info, dest_encoded = get_drive_time(origin, destination)
 
+# 如果查不到路線就只回傳一則文字
+if not dest_encoded:
     line_bot_api.reply_message(
         event.reply_token,
-        [
-            TextSendMessage(text=travel_info),
-            TextSendMessage(text=f"👇 點我開始導航\n{nav_link}")
-        ]
+        TextSendMessage(text=travel_info)
     )
+    return
+
+# 正常回報兩則訊息
+nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(dest_encoded)}&travelmode=driving"
+line_bot_api.reply_message(
+    event.reply_token,
+    [
+        TextSendMessage(text=travel_info),
+        TextSendMessage(text=f"👇 點我開始導航\n{nav_link}")
+    ]
+)
+
 
 if __name__ == "__main__":
     app.run()
