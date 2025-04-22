@@ -16,7 +16,7 @@ handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
 def get_drive_time(destination):
-    origin = "current+location"
+    origin = "台中市西屯區逢明街29巷70號"
     url = "https://maps.googleapis.com/maps/api/directions/json"
     params = {
         "origin": origin,
