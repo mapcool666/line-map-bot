@@ -35,8 +35,9 @@ def resolve_place(query):
     candidates = response.get("candidates")
     if candidates:
         location = candidates[0]["geometry"]["location"]
-        return query, f"{location['lat']},{location['lng']}"
-    return query, None  # fallback：地點名稱保留
+        formatted_address = candidates[0]["formatted_address"]
+        return formatted_address, f"{location['lat']},{location['lng']}"
+    return query, None  # fallback：保留原始輸入名稱
 
 # 查詢開車時間（顯示原始名稱）
 def get_drive_time(origin, destination_coords, destination_text):
