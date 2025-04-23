@@ -20,13 +20,19 @@ user_states = {}
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
-# 地點解析（回傳：原始文字、經緯度座標、place_id）
+# 🔹 從輸入文字中萃取斜線後的查詢字串
+def extract_query(text):
+    if "/" in text:
+        return text.split("/")[-1].strip()
+    return text.strip()
+
+# 地點解析（回傳：formatted_address + 精確座標）
 def resolve_place(query):
     url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
     params = {
         "input": query,
         "inputtype": "textquery",
-        "fields": "formatted_address,geometry,name,place_id",
+        "fields": "formatted_address,geometry",
         "language": "zh-TW",
         "region": "tw",
         "key": GOOGLE_API_KEY
@@ -35,11 +41,11 @@ def resolve_place(query):
     candidates = response.get("candidates")
     if candidates:
         location = candidates[0]["geometry"]["location"]
-        place_id = candidates[0]["place_id"]
-        return query, f"{location['lat']},{location['lng']}", place_id
-    return query, None, None  # fallback：保留原始輸入名稱
+        formatted_address = candidates[0]["formatted_address"]
+        return query, f"{location['lat']},{location['lng']}"
+    return query, None  # fallback：保留原始輸入名稱
 
-# 查詢開車時間（顯示 query 作為名稱）
+# 查詢開車時間（顯示 display_name 作為名稱）
 def get_drive_time(origin, destination_coords, display_name):
     url = "https://maps.googleapis.com/maps/api/directions/json"
     params = {
@@ -93,7 +99,8 @@ def handle_location(event):
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text(event):
     user_id = event.source.user_id
-    query = event.message.text
+    raw_query = event.message.text  # 使用者輸入原文
+    search_query = extract_query(raw_query)  # 萃取關鍵字查詢用
 
     if user_id not in user_states:
         line_bot_api.reply_message(
@@ -103,14 +110,13 @@ def handle_text(event):
         return
 
     origin = user_states[user_id]
-    display_name, destination_coords, place_id = resolve_place(query)
+    display_name, destination_coords = resolve_place(search_query)
 
-    # fallback：如果解析失敗，仍使用原始輸入文字
     if not destination_coords:
-        destination_coords = query
-        place_id = None
+        destination_coords = search_query
+        display_name = search_query
 
-    travel_info, encoded_coords = get_drive_time(origin, destination_coords, display_name)
+    travel_info, encoded_coords = get_drive_time(origin, destination_coords, raw_query)
 
     if not encoded_coords:
         line_bot_api.reply_message(
@@ -119,11 +125,7 @@ def handle_text(event):
         )
         return
 
-    # 使用 place_id 建立導航連結（更精準）
-    if place_id:
-        nav_link = f"https://www.google.com/maps/dir/?api=1&destination=place_id:{place_id}&travelmode=driving"
-    else:
-        nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(query)}&travelmode=driving"
+    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(raw_query)}&travelmode=driving"
 
     line_bot_api.reply_message(
         event.reply_token,
