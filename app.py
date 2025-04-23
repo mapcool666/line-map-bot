@@ -36,7 +36,7 @@ def resolve_place(query):
     if candidates:
         location = candidates[0]["geometry"]["location"]
         formatted_address = candidates[0]["formatted_address"]
-        return formatted_address, f"{location['lat']},{location['lng']}"
+        return query, f"{location['lat']},{location['lng']}"
     return query, None  # fallback：保留原始輸入名稱
 
 # 查詢開車時間（顯示 query 作為名稱）
