@@ -20,7 +20,7 @@ user_states = {}
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
-# 地點解析（回傳：原始名稱 + 精確座標）
+# 地點解析（回傳：formatted_address + 精確座標）
 def resolve_place(query):
     url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
     params = {
@@ -39,8 +39,8 @@ def resolve_place(query):
         return formatted_address, f"{location['lat']},{location['lng']}"
     return query, None  # fallback：保留原始輸入名稱
 
-# 查詢開車時間（顯示原始名稱）
-def get_drive_time(origin, destination_coords, destination_text):
+# 查詢開車時間（顯示 query 作為名稱）
+def get_drive_time(origin, destination_coords, display_name):
     url = "https://maps.googleapis.com/maps/api/directions/json"
     params = {
         "origin": origin,
@@ -55,14 +55,14 @@ def get_drive_time(origin, destination_coords, destination_text):
     response = requests.get(url, params=params).json()
 
     if not response.get("routes"):
-        return f"{destination_text}\n1651黑 🈲代駕\n查詢失敗：找不到路線", None
+        return f"{display_name}\n1651黑 🈲代駕\n查詢失敗：找不到路線", None
 
     try:
         seconds = response["routes"][0]["legs"][0]["duration_in_traffic"]["value"]
         minutes = int(seconds / 60) + 2
-        return f"{destination_text}\n1651黑 🈲代駕\n{minutes}分", destination_coords
+        return f"{display_name}\n1651黑 🈲代駕\n{minutes}分", destination_coords
     except Exception as e:
-        return f"{destination_text}\n1651黑 🈲代駕\n查詢失敗：{str(e)}", None
+        return f"{display_name}\n1651黑 🈲代駕\n查詢失敗：{str(e)}", None
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -100,13 +100,13 @@ def handle_text(event):
         return
 
     origin = user_states[user_id]
-    destination_text, destination_coords = resolve_place(query)
+    _, destination_coords = resolve_place(query)
 
     # fallback：如果 Places API 找不到，就直接查地址
     if not destination_coords:
         destination_coords = query
 
-    travel_info, encoded_coords = get_drive_time(origin, destination_coords, destination_text)
+    travel_info, encoded_coords = get_drive_time(origin, destination_coords, query)
 
     if not encoded_coords:
         line_bot_api.reply_message(
@@ -115,7 +115,7 @@ def handle_text(event):
         )
         return
 
-    # ✅ 改用 destination_text 產生導覽連結，保留原始地名顯示
+    # 導航連結保留原始文字
     nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(query)}&travelmode=driving"
     
     line_bot_api.reply_message(
