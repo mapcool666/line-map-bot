@@ -35,6 +35,7 @@ def resolve_place(query):
         "fields": "formatted_address,geometry",
         "language": "zh-TW",
         "region": "tw",
+        "locationbias": "circle:30000@24.1477,120.6736",  # 台中市中心座標，半徑 30 公里
         "key": GOOGLE_API_KEY
     }
     response = requests.get(url, params=params).json()
