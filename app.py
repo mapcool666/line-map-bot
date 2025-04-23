@@ -114,7 +114,9 @@ def handle_text(event):
         )
         return
 
-    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(encoded_coords)}&travelmode=driving"
+    # ✅ 改用 destination_text 產生導覽連結，保留原始地名顯示
+    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(destination_text)}&travelmode=driving"
+    
     line_bot_api.reply_message(
         event.reply_token,
         [
