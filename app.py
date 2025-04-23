@@ -20,13 +20,13 @@ user_states = {}
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
-# 地點解析（回傳：formatted_address + 精確座標）
+# 地點解析（回傳：原始文字、經緯度座標、place_id）
 def resolve_place(query):
     url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
     params = {
         "input": query,
         "inputtype": "textquery",
-        "fields": "formatted_address,geometry",
+        "fields": "formatted_address,geometry,name,place_id",
         "language": "zh-TW",
         "region": "tw",
         "key": GOOGLE_API_KEY
@@ -35,9 +35,9 @@ def resolve_place(query):
     candidates = response.get("candidates")
     if candidates:
         location = candidates[0]["geometry"]["location"]
-        formatted_address = candidates[0]["formatted_address"]
-        return query, f"{location['lat']},{location['lng']}"
-    return query, None  # fallback：保留原始輸入名稱
+        place_id = candidates[0]["place_id"]
+        return query, f"{location['lat']},{location['lng']}", place_id
+    return query, None, None  # fallback：保留原始輸入名稱
 
 # 查詢開車時間（顯示 query 作為名稱）
 def get_drive_time(origin, destination_coords, display_name):
@@ -69,7 +69,6 @@ def callback():
     if request.method == "GET":
         return "✅ LINE bot 正常運作", 200  # for UptimeRobot health check
 
-    # 以下為 POST 的處理（原本就有的）
     signature = request.headers["X-Line-Signature"]
     body = request.get_data(as_text=True)
 
@@ -104,12 +103,12 @@ def handle_text(event):
         return
 
     origin = user_states[user_id]
-    display_name, destination_coords = resolve_place(query)
+    display_name, destination_coords, place_id = resolve_place(query)
 
-    # fallback：如果 Places API 找不到，就直接查地址並保留輸入文字
+    # fallback：如果解析失敗，仍使用原始輸入文字
     if not destination_coords:
         destination_coords = query
-        display_name = query
+        place_id = None
 
     travel_info, encoded_coords = get_drive_time(origin, destination_coords, display_name)
 
@@ -120,9 +119,12 @@ def handle_text(event):
         )
         return
 
-    # 導航連結保留原始文字（不使用 address 避免不一致）
-    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(query)}&travelmode=driving"
-    
+    # 使用 place_id 建立導航連結（更精準）
+    if place_id:
+        nav_link = f"https://www.google.com/maps/dir/?api=1&destination=place_id:{place_id}&travelmode=driving"
+    else:
+        nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(query)}&travelmode=driving"
+
     line_bot_api.reply_message(
         event.reply_token,
         [
