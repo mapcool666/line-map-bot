@@ -64,8 +64,12 @@ def get_drive_time(origin, destination_coords, display_name):
     except Exception as e:
         return f"{display_name}\n1651黑 🈲代駕\n查詢失敗：{str(e)}", None
 
-@app.route("/callback", methods=["POST"])
+@app.route("/callback", methods=["GET", "POST"])
 def callback():
+    if request.method == "GET":
+        return "✅ LINE bot 正常運作", 200  # for UptimeRobot health check
+
+    # 以下為 POST 的處理（原本就有的）
     signature = request.headers["X-Line-Signature"]
     body = request.get_data(as_text=True)
 
@@ -100,13 +104,14 @@ def handle_text(event):
         return
 
     origin = user_states[user_id]
-    _, destination_coords = resolve_place(query)
+    display_name, destination_coords = resolve_place(query)
 
-    # fallback：如果 Places API 找不到，就直接查地址
+    # fallback：如果 Places API 找不到，就直接查地址並保留輸入文字
     if not destination_coords:
         destination_coords = query
+        display_name = query
 
-    travel_info, encoded_coords = get_drive_time(origin, destination_coords, query)
+    travel_info, encoded_coords = get_drive_time(origin, destination_coords, display_name)
 
     if not encoded_coords:
         line_bot_api.reply_message(
@@ -115,7 +120,7 @@ def handle_text(event):
         )
         return
 
-    # 導航連結保留原始文字
+    # 導航連結保留原始文字（不使用 address 避免不一致）
     nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(query)}&travelmode=driving"
     
     line_bot_api.reply_message(
