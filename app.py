@@ -125,7 +125,7 @@ def handle_text(event):
         )
         return
 
-    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(raw_query)}&travelmode=driving"
+    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={quote(search_query)}&travelmode=driving"
 
     line_bot_api.reply_message(
         event.reply_token,
